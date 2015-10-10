@@ -141,6 +141,8 @@ class Tau( object ):
             
             sys.stderr.write(msg)
             sys.stderr.write("\n")
-        
+            
+            raise ValueError(msg)
+            
         return val
             
