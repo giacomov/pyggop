@@ -1,5 +1,7 @@
 # pyggop
 
+( J. Cohen-Tanugi, G. Vianello, J. Granot )
+
 A code to prepare templates for pair production opacity in relativistic sources.
 
 This is a python version of the code developed for the paper 
