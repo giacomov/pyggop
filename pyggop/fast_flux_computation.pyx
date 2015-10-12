@@ -35,10 +35,16 @@ cdef double int_F0(double y, double m, double b, double a):
     res *= y**(b - 1- m*a/2 );
     return res
 
+import multiprocessing
+
+NCPUS = multiprocessing.cpu_count()
+
 
 class FastFluxComputation(object):
     
-    def __init__(self, double m, double b, double a, double DRbar, double R_0=1.0, double tau_star=1.0):
+    def __init__(self, double m, double b, double a, 
+                       double DRbar, double R_0=1.0, 
+                       double tau_star=1.0):
       
         self.m = m
         self.mp1 = self.m + 1
@@ -88,7 +94,8 @@ class FastFluxComputation(object):
         
         self.tau = Tau( self.m, self.b, self.a, 
                         self.DRbar, self.R_0, 
-                        self.tau_star  )
+                        self.tau_star,
+                        NCPUS  )
             
     def flux_integrand2(self, double y):
         
@@ -205,7 +212,10 @@ def worker(Tbar, eps, c):
 pass #End of worker
 
 
-def go(double m=0, double b=0, double a=2,double DRbar=0.1,double R_0=1.0,double tau_star=1.0, int plot=False):
+def go(double m=0, double b=0, 
+       double a=2, double DRbar=0.1,
+       double R_0=1.0, double tau_star=1.0,
+       int plot=False):
     
     c = FastFluxComputation(m, b, a, DRbar, R_0, tau_star)
     
@@ -225,7 +235,7 @@ def go(double m=0, double b=0, double a=2,double DRbar=0.1,double R_0=1.0,double
     
     workWrap = functools.partial(worker,eps=eps,c=c)
         
-    pool = multiprocessing.Pool(8)
+    pool = multiprocessing.Pool(NCPUS)
     
     allSpectra = np.zeros( ( Tbars.shape[0], eps.shape[0] ) )
     

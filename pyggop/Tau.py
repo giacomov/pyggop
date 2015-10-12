@@ -34,7 +34,7 @@ def proxy(args):
 
 class Tau( object ):
     
-    def __init__(self, m, b, a, DRbar, R_0=1.0, tau_star=1.0):
+    def __init__(self, m, b, a, DRbar, R_0=1.0, tau_star=1.0, ncpus=1):
         
         self.m = float(m)
         self.b = float(b)
@@ -44,6 +44,8 @@ class Tau( object ):
         self.tau_star = tau_star
         
         self.name = self._getUniqueName()
+        
+        self.ncpus = int(ncpus)
         
         self.loadLookupTable()
         
@@ -80,7 +82,7 @@ class Tau( object ):
         
         result = np.zeros(shape=(XX.shape))
         
-        pool = Pool(processes=8)
+        pool = Pool(processes=self.ncpus)
         pool_res = pool.map(proxy, data_stream(self.DRbar, self.R_0, 
                                                self.b, self.m, self.a,
                                                XX, YY))

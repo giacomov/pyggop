@@ -3,6 +3,10 @@
 from pyggop import fast_flux_computation
 import argparse
 
+import multiprocessing
+
+defaultCpus = multiprocessing.cpu_count()
+
 desc                          = '''Produce template for gamma-gamma opacity (Granot et al. 2008)'''
 parser                        = argparse.ArgumentParser(description=desc)
 
@@ -21,6 +25,9 @@ parser.add_argument("-d",help="\Delta R / R0", required=True, type=float)
 parser.add_argument("-r",help="R0", required=False, type=float, default=1.0)
 parser.add_argument("-t",help="tau_star", required=False, type=float, default=1.0)
 
+parser.add_argument("--ncpus","Number of cpu to use (default: %s)" % defaultCpus, 
+                    default=defaultCpus, required=False)
+
 parser.add_argument("--plot",help="If yes, make a plot with the results",
                     required=False,choices=['yes','no'],default='no')
 
@@ -35,5 +42,8 @@ if __name__=="__main__":
     else:
         
         plot = False
+    
+    #Set the number of CPUS to use
+    fast_flux_computation.NCPUS = args.ncpus
     
     fast_flux_computation.go(args.m, args.b, args.a, args.d, args.r, args.t, plot)
