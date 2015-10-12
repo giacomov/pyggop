@@ -2,9 +2,12 @@
 __pycache__/
 *.py[cod]
 
+pyggop/fast_flux_computation.c
+pyggop/grbod.c
+
+
 # C extensions
 *.so
-*.c
 
 # Distribution / packaging
 .Python
