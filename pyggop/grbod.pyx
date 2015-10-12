@@ -22,6 +22,24 @@ reg={
 #def y2x(double y, double m):
 #    return (y**(-m-1)-1)/(m+1)
 
+#============================================
+#This substitute the scipy version of hyp2f1
+#for speed. hygfz_ is defined in specfun.c
+
+cdef extern:
+    
+    void hygfz_(double *a, double *b, double *c, 
+                complex *x, complex *out)
+
+cdef cython_hygfz( double a, double b, double c, complex x):
+    
+    cdef complex out
+    hygfz_( &a, &b, &c, &x, &out)
+    
+    return out.real
+
+# ==========================================
+
 cdef double fm(double R_t, double x, double m):
     return ( 1 + x*(m+1)*(1-1/R_t) ) / R_t**(m+1)
 
@@ -59,7 +77,9 @@ cdef double inner_tau_integrand(double R_e, double R_t, double x, double b, doub
            
            pppp = pow(z_m, a)
            
-           zma_H_a = pppp *  scispec.hyp2f1(-a,0.5,1,-z)
+           zma_H_a = pppp * cython_hygfz( -a, 0.5, 1, -z )
+           
+           #zma_H_a = pppp *  scispec.hyp2f1(-a,0.5,1,-z)
         
     f = fac * zma_H_a;
     
