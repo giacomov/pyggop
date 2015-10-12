@@ -209,7 +209,7 @@ def go(double m=0, double b=0, double a=2,double DRbar=0.1,double R_0=1.0,double
     
     c = FastFluxComputation(m, b, a, DRbar, R_0, tau_star)
     
-    Tbars = np.logspace(-3,3,100)
+    Tbars = np.logspace(-6,4,100)
     
     #print("%s" %(Tbars[40]))
     
