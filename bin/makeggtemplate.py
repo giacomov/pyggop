@@ -25,7 +25,7 @@ parser.add_argument("-d",help="\Delta R / R0", required=True, type=float)
 parser.add_argument("-r",help="R0", required=False, type=float, default=1.0)
 parser.add_argument("-t",help="tau_star", required=False, type=float, default=1.0)
 
-parser.add_argument("--ncpus","Number of cpu to use (default: %s)" % defaultCpus, 
+parser.add_argument("--ncpus",help="Number of cpu to use (default: %s)" % defaultCpus, 
                     default=defaultCpus, required=False)
 
 parser.add_argument("--plot",help="If yes, make a plot with the results",
