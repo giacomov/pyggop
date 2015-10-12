@@ -5,7 +5,7 @@ from distutils.extension import Extension
 #import cython_gsl
 
 extensions = [
-    Extension("pyggop/grbod", ["pyggop/grbod.pyx"]),
+    Extension("pyggop/grbod", ["pyggop/grbod.pyx","pyggop/specfun.C"], libraries=["f2c","m"]),
     
     Extension("pyggop/fast_flux_computation", ["pyggop/fast_flux_computation.pyx"])
     
