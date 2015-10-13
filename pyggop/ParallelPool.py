@@ -18,7 +18,7 @@ class ParallelPool( object ):
             
             self.IPYc = Client( profile=self.c.parallel.ipython.profile )
     
-            self.pool = IPYc[:]
+            self.pool = self.IPYc[:]
         
         elif self.c.parallel.technology=='python':
             

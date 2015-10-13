@@ -17,6 +17,8 @@ setup(
     
     packages = ["pyggop","pyggop/config"],
     
+    package_data = { "pyggop/config": ['configuration.json'] },
+    
     version = 'v1.0.0',
     
     description = "Generates templates for pair production opacity in relativistic sources",
