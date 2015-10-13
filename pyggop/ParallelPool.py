@@ -30,7 +30,7 @@ class ParallelPool( object ):
                 
                 n_cpus = self.c.parallel.python.number_of_processes
             
-            self.pool = Pool( n_cpus )
+            self.pool = multiprocessing.Pool( n_cpus )
         
         else:
             
