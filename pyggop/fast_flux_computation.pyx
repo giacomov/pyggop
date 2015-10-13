@@ -25,6 +25,8 @@ from pyggop.grbod import tau_integral, reg
 
 from pyggop.Tau import Tau
 
+from pyggop.ParallelPool import ParallelPool
+
 cdef double y2x(double y, double m):
     return (y**(-m-1)-1)/(m+1)
 
@@ -34,11 +36,6 @@ cdef double int_F0(double y, double m, double b, double a):
     res = ( mp1/(m + y**(-mp1)))**(1+a)
     res *= y**(b - 1- m*a/2 );
     return res
-
-import multiprocessing
-
-NCPUS = multiprocessing.cpu_count()
-
 
 class FastFluxComputation(object):
     
@@ -94,8 +91,7 @@ class FastFluxComputation(object):
         
         self.tau = Tau( self.m, self.b, self.a, 
                         self.DRbar, self.R_0, 
-                        self.tau_star,
-                        NCPUS  )
+                        self.tau_star )
             
     def flux_integrand2(self, double y):
         
@@ -235,13 +231,13 @@ def go(double m=0, double b=0,
     
     workWrap = functools.partial(worker,eps=eps,c=c)
         
-    pool = multiprocessing.Pool(NCPUS)
+    pool = ParallelPool( )
     
     allSpectra = np.zeros( ( Tbars.shape[0], eps.shape[0] ) )
     
     #res = map(workWrap, Tbars)
     
-    for i, res in enumerate( pool.imap(workWrap, Tbars) ):
+    for i, res in enumerate( pool.imap( workWrap, Tbars ) ):
      
       sys.stderr.write("\r%03i out of %i completed" %(i+1, Tbars.shape[0]))
       
@@ -258,6 +254,8 @@ def go(double m=0, double b=0,
     
     sys.stderr.write("\n")
     
+    pool.close()
+    
     #Compute integrated spectrum
     F_time_int = np.zeros_like(eps)
     
@@ -273,7 +271,7 @@ def go(double m=0, double b=0,
         plt.loglog()
         plt.savefig('flux_m%s_a%s_b%s_DR%s.png'%(str(m),str(a),str(b),str(DRbar)))
     
-    filename='flux_m%s_a%s_b%s_DR%s.dat'%(str(m),str(a),str(b),str(DRbar))
+    filename='flux_m%s_a%.2f_b%s_DR%.2g.dat'%(str(m),a,str(b),DRbar)
     
     with open(filename, 'w+') as f:
         
@@ -284,4 +282,6 @@ def go(double m=0, double b=0,
         f.write(txt)
         f.write("\n")
         f.close()
+    
+    return filename
     

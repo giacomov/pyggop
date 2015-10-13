@@ -1,0 +1,35 @@
+{
+  "parallel": 
+  {
+    
+    #Technology can be 'ipython' or 'python'. In the former
+    #case the Parallel facility of IPython will be used,
+    #in the latter the multiprocessing module of python
+    
+    "technology": "ipython",
+    
+    "python": 
+      {
+    
+        #Leave this as 0 to use all available CPUs,
+        #otherwise indicate an integer
+    
+        "number_of_processes": 0
+    
+      },
+    
+    "ipython":
+      {
+
+        #Name of the ipython profile to use to connect to the
+        #kernels
+    
+        "profile": "ssh"      
+      
+      }
+    
+
+    
+  }
+
+}

@@ -9,6 +9,7 @@ import pickle
 import scipy.interpolate
 from math import log10
 
+from pyggop.ParallelPool import ParallelPool
 
 #This is the actual computation
 def func(DRbar, R_0, b, m, a, xx, yy):
@@ -34,7 +35,7 @@ def proxy(args):
 
 class Tau( object ):
     
-    def __init__(self, m, b, a, DRbar, R_0=1.0, tau_star=1.0, ncpus=1):
+    def __init__(self, m, b, a, DRbar, R_0=1.0, tau_star=1.0 ):
         
         self.m = float(m)
         self.b = float(b)
@@ -44,9 +45,7 @@ class Tau( object ):
         self.tau_star = tau_star
         
         self.name = self._getUniqueName()
-        
-        self.ncpus = int(ncpus)
-        
+                
         self.loadLookupTable()
         
     def _getUniqueName(self):
@@ -81,13 +80,14 @@ class Tau( object ):
     def compute(self, XX, YY):
         
         result = np.zeros(shape=(XX.shape))
-        
-        pool = Pool(processes=self.ncpus)
+                
+        pool = ParallelPool( )
+                
         pool_res = pool.map(proxy, data_stream(self.DRbar, self.R_0, 
                                                self.b, self.m, self.a,
                                                XX, YY))
+        
         pool.close()
-        pool.join()
         
         for k,v in pool_res:
         
@@ -97,14 +97,14 @@ class Tau( object ):
     
     def computeLookupTable( self, plot=False ):
         
-        X = np.linspace(-11, 3, 200)#log10(R_t0/R0-1)
+        X = np.linspace(-11, 3, 100)#log10(R_t0/R0-1)
         
-        Y = np.concatenate((np.arange(-6, -4,1 / 2.0),
-                            np.arange(-4, -1,1/ 2.0), 
-                            np.arange(-1, -0.04, 0.1/ 2.0),
-                            np.arange(-0.04, 0.08, 0.02/ 2.0), 
-                            np.arange(0.08, 0.9, 0.1/ 2.0),
-                            np.arange(1, 2.2,0.2/ 10.0)))
+        Y = np.concatenate((np.arange(-6, -4,1 / 1.0),
+                            np.arange(-4, -1,1/ 1.0), 
+                            np.arange(-1, -0.04, 0.1/ 1.0),
+                            np.arange(-0.04, 0.08, 0.02/ 1.0), 
+                            np.arange(0.08, 0.9, 0.1/ 1.0),
+                            np.arange(1, 2.2,0.2/ 2.0)))
         
         #Y = np.concatenate((np.arange(-4, -1,1 / 2.0), 
         #                    np.arange(-1, -0.04, 0.1 / 2.0),
