@@ -15,7 +15,7 @@ setup(
     
     name="pyggop",
     
-    packages = ["pyggop"],
+    packages = ["pyggop","pyggop/config"],
     
     version = 'v1.0.0',
     
