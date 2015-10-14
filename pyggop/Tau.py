@@ -9,6 +9,8 @@ import pickle
 import scipy.interpolate
 from math import log10
 
+import matplotlib.pyplot as plt
+
 from pyggop.ParallelPool import ParallelPool
 
 #This is the actual computation
@@ -95,15 +97,15 @@ class Tau( object ):
         
         return result
     
-    def computeLookupTable( self, plot=False ):
+    def computeLookupTable( self, plot=True ):
         
-        X = np.linspace(-11, 3, 100)#log10(R_t0/R0-1)
+        X = np.linspace(-11, 3, 50)#log10(R_t0/R0-1)
         
-        Y = np.concatenate((np.arange(-6, -4,1 / 1.0),
-                            np.arange(-4, -1,1/ 1.0), 
-                            np.arange(-1, -0.04, 0.1/ 1.0),
-                            np.arange(-0.04, 0.08, 0.02/ 1.0), 
-                            np.arange(0.08, 0.9, 0.1/ 1.0),
+        Y = np.concatenate((np.arange(-6, -4,1 / 2.0),
+                            np.arange(-4, -1,1/ 2.0), 
+                            np.arange(-1, -0.04, 0.1/ 4.0),
+                            np.arange(-0.04, 0.08, 0.01 / 4.0), 
+                            np.arange(0.08, 0.9, 0.1/ 4.0),
                             np.arange(1, 2.2,0.2/ 2.0)))
         
         #Y = np.concatenate((np.arange(-4, -1,1 / 2.0), 
@@ -116,6 +118,13 @@ class Tau( object ):
         
         Z = self.compute(XX, YY)
         
+        idx = np.isfinite(Z)
+        
+        Z[~idx] = 1e-27
+        
+        idx = Z <= 0
+        Z[idx] = 1e-27
+        
         print("Zmin = %s, Zmax = %s" %(Z.min(),Z.max()))
         
         if plot:
@@ -123,6 +132,7 @@ class Tau( object ):
             plt.figure(1)
             plt.contourf(X, Y, np.log10(Z.transpose()), 20)
             plt.colorbar()
+            plt.savefig("interpolation_data.png")
         
         final = {'X':X, 'Y':Y, 'Z':np.log10(Z)}
         final['comment'] = "X = log10(R_t0/R0-1)\nY = log10(gth_t0) = log10(sqrt(x))\nZ = log10(tau_integral)"
