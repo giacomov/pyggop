@@ -108,6 +108,8 @@ class FastFluxComputation(object):
         
         if X < -11:
              
+             print("X is %s. Fixing to -11" %(X))
+             
              X = -11
         
         x = ( pow( y, - mp1 ) - 1) / mp1
