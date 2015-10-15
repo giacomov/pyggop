@@ -122,7 +122,7 @@ class Tau( object ):
         
         Z[~idx] = 1e-27
         
-        idx = Z <= 0
+        idx = (Z <= 0)
         Z[idx] = 1e-27
         
         print("Zmin = %s, Zmax = %s" %(Z.min(),Z.max()))
