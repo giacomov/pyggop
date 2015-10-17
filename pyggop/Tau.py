@@ -101,12 +101,12 @@ class Tau( object ):
         
         X = np.linspace(-11, 3, 50)#log10(R_t0/R0-1)
         
-        Y = np.concatenate((np.arange(-6, -4,1 / 1.0),
-                            np.arange(-4, -1,1/ 1.0), 
-                            np.arange(-1, -0.04, 0.1/ 4.0),
-                            np.arange(-0.04, 0.08, 0.01 / 4.0), 
-                            np.arange(0.08, 0.9, 0.1/ 2.0),
-                            np.arange(1, 2.2,0.2/ 1.0)))
+        Y = np.concatenate((np.arange(-6, -4,1 / 3.0),
+                            np.arange(-4, -1,1/ 3.0), 
+                            np.arange(-1, -0.04, 0.1/ 8.0),
+                            np.arange(-0.04, 0.08, 0.01 / 8.0), 
+                            np.arange(0.08, 0.9, 0.1/ 4.0),
+                            np.arange(1, 2.2,0.2/ 3.0)))
         
         #Y = np.concatenate((np.arange(-4, -1,1 / 2.0), 
         #                    np.arange(-1, -0.04, 0.1 / 2.0),
