@@ -370,27 +370,28 @@ class BandPPTemplate(SpectralModel):
         
         if key in self.cache.keys():
             
-            cc = self.cache[key]
+            nuFnu = self.cache[key]
         
         else:
         
             nuFnu = self.interpolator.getTemplate( beta * (-1), DRbar )
-        
-            ee = self.interpolator.eneGrid * Ec
-        
-            #ene_interpolant = scipy.interpolate.UnivariateSpline(
-            #                              numpy.log10( ee ), 
-            #                              numpy.log10( nuFnu ), k=1,
-            #                              s=0, ext=3)
-        
-            #cc = numpy.power(10, ene_interpolant(numpy.log10(energies)))
-        
-            interpolation = numpy.interp( numpy.log10( energies ), numpy.log10(ee), numpy.log10( nuFnu[:, 0] ) )
-            cc = numpy.power(10, interpolation)
             
-            self.cache[key] = cc
+            self.cache[key] = nuFnu
         
         pass
+          
+        ee = self.interpolator.eneGrid * Ec
+
+        interpolation = numpy.interp( numpy.log10( energies ), numpy.log10(ee), numpy.log10( nuFnu[:, 0] ) )
+        
+        cc = numpy.power(10, interpolation)
+        
+        #ene_interpolant = scipy.interpolate.UnivariateSpline(
+        #                              numpy.log10( ee ), 
+        #                              numpy.log10( nuFnu ), k=1,
+        #                              s=0, ext=3)
+        
+        #cc = numpy.power(10, ene_interpolant(numpy.log10(energies)))        
         
         #This should be out = (energies * energies * out * cc ) / energies / energies,
         #which of course simplify to:
