@@ -236,6 +236,7 @@ class MyInterpolator( object ):
             data = numpy.genfromtxt( dat, delimiter=' ', comments='#')
         
             fl = data[:,1]
+            fl = fl / fl.max()
             #idx = fl < 1e-30
             #fl[idx] = 1e-30
     
@@ -280,7 +281,7 @@ class BandPPTemplate(SpectralModel):
         self.parameters         = collections.OrderedDict()
         self.parameters['alpha'] = Parameter('alpha',-1.0,-5,10,0.1,fixed=False,nuisance=False,dataset=None)
         self.parameters['beta']  = Parameter('beta',-2.0,-3,-1.5,0.1,fixed=False,nuisance=False,dataset=None)
-        self.parameters['E0']    = Parameter('E0',500,10,1e5,10,fixed=False,nuisance=False,dataset=None,unit='keV')
+        self.parameters['Ep']    = Parameter('Ep',500,10,1e5,10,fixed=False,nuisance=False,dataset=None,unit='keV')
         self.parameters['K']     = Parameter('K',1,1e-4,1e3,0.1,fixed=False,nuisance=False,dataset=None,normalization=True)
         
         self.parameters['Ec']    = Parameter('Ec',511,1e-4,1e6,100,fixed=False,nuisance=False,dataset=None,normalization=False)
@@ -325,14 +326,21 @@ class BandPPTemplate(SpectralModel):
         energies                 = numpy.array(e,ndmin=1,copy=False)
         alpha                    = self.parameters['alpha'].value
         beta                     = self.parameters['beta'].value
-        E0                       = self.parameters['E0'].value
+        Ep                       = self.parameters['Ep'].value
         K                        = self.parameters['K'].value
         Ec                       = self.parameters['Ec'].value
         
+        E0                       = Ep / (2 + alpha)
+        
         DRbar                    = self.parameters['DRbar'].value
         
-        if(alpha < beta):
+        if alpha < beta:
+          
           raise CustomExceptions.ModelAssertionViolation("Alpha cannot be less than beta")
+        
+        if Ec <= Ep:
+          
+          raise CustomExceptions.ModelAssertionViolation("Ec cannot be less than Ep")
         
         out                      = numpy.zeros(energies.flatten().shape[0])
         idx                      = (energies < (alpha-beta)*E0)
@@ -368,7 +376,7 @@ class BandPPTemplate(SpectralModel):
         
         key = ("%.2f, %.2g" %(beta, DRbar))
         
-        if key in self.cache.keys():
+        if key in self.cache.keys() and 1==0:
             
             nuFnu = self.cache[key]
         
@@ -385,6 +393,12 @@ class BandPPTemplate(SpectralModel):
         interpolation = numpy.interp( numpy.log10( energies ), numpy.log10(ee), numpy.log10( nuFnu[:, 0] ) )
         
         cc = numpy.power(10, interpolation)
+                
+        idx = (energies / Ec < self.interpolator.eneGrid.min())
+        cc[idx] = 1
+        
+        idx = (energies / Ec > self.interpolator.eneGrid.max())
+        cc[idx] = 0
         
         #ene_interpolant = scipy.interpolate.UnivariateSpline(
         #                              numpy.log10( ee ), 
@@ -396,7 +410,13 @@ class BandPPTemplate(SpectralModel):
         #This should be out = (energies * energies * out * cc ) / energies / energies,
         #which of course simplify to:
         
-        out                      = out * cc
+        #ep = (2 + alpha) * E0 
+        
+        #idx = (energies > ep)
+        
+        #out[idx] = out[idx] * cc[idx]
+        
+        out =  out * cc
         
         
         #This fixes nan(s) and inf values, converting them respectively to zeros and large numbers
