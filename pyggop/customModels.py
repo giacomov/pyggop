@@ -338,7 +338,7 @@ class BandPPTemplate(SpectralModel):
           
           raise CustomExceptions.ModelAssertionViolation("Alpha cannot be less than beta")
         
-        if Ec <= Ep:
+        if Ec <= Ep and 1==0:
           
           raise CustomExceptions.ModelAssertionViolation("Ec cannot be less than Ep")
         
@@ -409,12 +409,6 @@ class BandPPTemplate(SpectralModel):
         
         #This should be out = (energies * energies * out * cc ) / energies / energies,
         #which of course simplify to:
-        
-        #ep = (2 + alpha) * E0 
-        
-        #idx = (energies > ep)
-        
-        #out[idx] = out[idx] * cc[idx]
         
         out =  out * cc
         
