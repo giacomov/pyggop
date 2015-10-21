@@ -120,10 +120,10 @@ class Tau( object ):
         
         idx = np.isfinite(Z)
         
-        Z[~idx] = 1e-27
+        Z[~idx] = 1e-30
         
         idx = (Z <= 0)
-        Z[idx] = 1e-27
+        Z[idx] = 1e-30
         
         print("Zmin = %s, Zmax = %s" %(Z.min(),Z.max()))
         
