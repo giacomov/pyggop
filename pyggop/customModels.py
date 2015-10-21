@@ -236,9 +236,8 @@ class MyInterpolator( object ):
             data = numpy.genfromtxt( dat, delimiter=' ', comments='#')
         
             fl = data[:,1]
-            fl = fl / fl.max()
-            #idx = fl < 1e-30
-            #fl[idx] = 1e-30
+            fl = numpy.clip( fl, 1e-30, fl.max() )
+            #fl = fl / fl.max()
     
             values.append( numpy.log10(fl) )
         
@@ -378,13 +377,13 @@ class BandPPTemplate(SpectralModel):
         
         if key in self.cache.keys() and 1==0:
             
-            nuFnu = self.cache[key]
+            nuFnu = numpy.array( self.cache[key], copy=True )
         
         else:
         
             nuFnu = self.interpolator.getTemplate( beta * (-1), DRbar )
             
-            self.cache[key] = nuFnu
+            #self.cache[key] = numpy.array( nuFnu, copy=True )
         
         pass
           
@@ -393,6 +392,9 @@ class BandPPTemplate(SpectralModel):
         interpolation = numpy.interp( numpy.log10( energies ), numpy.log10(ee), numpy.log10( nuFnu[:, 0] ) )
         
         cc = numpy.power(10, interpolation)
+        
+        #Re-norm to 1
+        cc = cc / cc.max()
                 
         idx = (energies / Ec < self.interpolator.eneGrid.min())
         cc[idx] = 1
