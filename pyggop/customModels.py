@@ -70,7 +70,7 @@ class BandPP(SpectralModel):
         #Multiply by the Granot factor
         deltaBeta                = (-1 - beta) * (2 - beta) / (1 - beta)
         #print("db = %.2f" % deltaBeta)
-        granot                   = numpy.power(numpy.power(1 + e/Ec, n * deltaBeta), -1/n)
+        granot                   = numpy.power( 1 + numpy.power(e/Ec, n * deltaBeta), -1/n)
         out                      = out * granot
         
         if(out.shape[0]==1):
@@ -236,6 +236,10 @@ class MyInterpolator( object ):
             data = numpy.genfromtxt( dat, delimiter=' ', comments='#')
         
             fl = data[:,1]
+            
+            idx = (fl==1e-27)
+            fl[idx] = 1e-30
+            
             fl = numpy.clip( fl, 1e-30, fl.max() )
             #fl = fl / fl.max()
     
