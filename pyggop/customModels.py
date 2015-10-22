@@ -26,7 +26,7 @@ class BandPP(SpectralModel):
         self.parameters         = collections.OrderedDict()
         self.parameters['alpha'] = Parameter('alpha',-1.0,-5,10,0.1,fixed=False,nuisance=False,dataset=None)
         self.parameters['beta']  = Parameter('beta',-2.0,-10,0,0.1,fixed=False,nuisance=False,dataset=None)
-        self.parameters['E0']    = Parameter('E0',500,10,1e5,10,fixed=False,nuisance=False,dataset=None,unit='keV')
+        self.parameters['Ep']    = Parameter('Ep',500,10,1e5,10,fixed=False,nuisance=False,dataset=None,unit='keV')
         self.parameters['K']     = Parameter('K',1,1e-4,1e3,0.1,fixed=False,nuisance=False,dataset=None,
                                              normalization=True)
         #[1+(E/E_c)^{n\Delta\beta}]^{-1/n}
@@ -50,10 +50,12 @@ class BandPP(SpectralModel):
         energies                 = numpy.array(e,ndmin=1,copy=False)
         alpha                    = self.parameters['alpha'].value
         beta                     = self.parameters['beta'].value
-        E0                       = self.parameters['E0'].value
+        Ep                       = self.parameters['Ep'].value
         K                        = self.parameters['K'].value
         Ec                       = self.parameters['Ec'].value
         n                        = self.parameters['n'].value
+        
+        E0 = Ep / ( 2 + alpha )
         
         if(alpha < beta):
           raise CustomExceptions.ModelAssertionViolation("Alpha cannot be less than beta")
@@ -94,7 +96,7 @@ K \left[ (\alpha-\beta)E_{0}\right]^{\alpha-\beta} \exp{(\beta-\alpha)} E_{c}^{\
         self.parameters         = collections.OrderedDict()
         self.parameters['alpha'] = Parameter('alpha',-1.0,-5,10,0.1,fixed=False,nuisance=False,dataset=None)
         self.parameters['beta']  = Parameter('beta',-2.0,-10,0,0.1,fixed=False,nuisance=False,dataset=None)
-        self.parameters['E0']    = Parameter('E0',500,10,1e5,10,fixed=False,nuisance=False,dataset=None,unit='keV')
+        self.parameters['Ep']    = Parameter('Ep',500,10,1e5,10,fixed=False,nuisance=False,dataset=None,unit='keV')
         self.parameters['K']     = Parameter('K',1,1e-4,1e3,0.1,fixed=False,nuisance=False,dataset=None,normalization=True)
         self.parameters['break'] = Parameter('break',3e4,10,1e7,1e3,fixed=False,nuisance=False,dataset=None,unit='keV')
         self.parameters['gamma'] = Parameter('gamma',-4.0,-10,0,0.1,fixed=False,nuisance=False,dataset=None)
@@ -115,10 +117,12 @@ K \left[ (\alpha-\beta)E_{0}\right]^{\alpha-\beta} \exp{(\beta-\alpha)} E_{c}^{\
         energies                 = numpy.array(e,ndmin=1,copy=False)
         alpha                    = self.parameters['alpha'].value
         beta                     = self.parameters['beta'].value
-        E0                       = self.parameters['E0'].value
+        Ep                       = self.parameters['Ep'].value
         K                        = self.parameters['K'].value
         E1                       = self.parameters['break'].value
         gamma                    = self.parameters['gamma'].value
+        
+        E0 = Ep / ( 2 + alpha )
         
         if(alpha < beta):
           raise CustomExceptions.ModelAssertionViolation("Alpha cannot be less than beta")
@@ -212,6 +216,8 @@ class MyInterpolator( object ):
     
     def __init__( self ):
         
+        self.interpolate = True
+        
         #Make the interpolators
         
         templates = glob.glob("flux_*.dat")
@@ -236,13 +242,7 @@ class MyInterpolator( object ):
             data = numpy.genfromtxt( dat, delimiter=' ', comments='#')
         
             fl = data[:,1]
-            
-            idx = (fl==1e-27)
-            fl[idx] = 1e-30
-            
-            fl = numpy.clip( fl, 1e-30, fl.max() )
-            #fl = fl / fl.max()
-    
+                
             values.append( numpy.log10(fl) )
         
         points = numpy.array(points)
@@ -262,11 +262,32 @@ class MyInterpolator( object ):
     
             self.interpolators.append( this )
     
-    def getTemplate( self, beta, DRbar):
+    def setInterpolationOff( self ):
         
-        values = map( lambda interp: interp([beta, DRbar]), self.interpolators )
+        self.interpolate = False
+    
+    def getTemplate( self, beta, DRbar ):
         
-        return numpy.power(10, values)
+        if self.interpolate:
+        
+            values = map( lambda interp: interp([beta, DRbar])[0], self.interpolators )
+            
+            template = numpy.power(10, values)
+            
+            template = template / template.max()
+            
+            return template
+            
+        else:
+            
+            _, eps, f_time_int = fast_flux_computation.go( 0, 0, beta, DRbar, 1.0, 1.0, False )
+            
+            template = numpy.array(f_time_int)
+            
+            template = template / template.max()
+            
+            return 
+        
 
 class BandPPTemplate(SpectralModel):
     
@@ -377,9 +398,11 @@ class BandPPTemplate(SpectralModel):
 #        #Now multiply by the template
 #        self.templateInstance.setCutoffEnergy(Ec)
         
-        key = ("%.2f, %.2g" %(beta, DRbar))
+        key = ("%.5f, %.4g" %(beta, DRbar))
         
-        if key in self.cache.keys() and 1==0:
+        if key in self.cache.keys():
+            
+            #print("Cached")
             
             nuFnu = numpy.array( self.cache[key], copy=True )
         
@@ -387,13 +410,13 @@ class BandPPTemplate(SpectralModel):
         
             nuFnu = self.interpolator.getTemplate( beta * (-1), DRbar )
             
-            #self.cache[key] = numpy.array( nuFnu, copy=True )
+            self.cache[key] = numpy.array( nuFnu, copy=True )
         
         pass
           
         ee = self.interpolator.eneGrid * Ec
 
-        interpolation = numpy.interp( numpy.log10( energies ), numpy.log10(ee), numpy.log10( nuFnu[:, 0] ) )
+        interpolation = numpy.interp( numpy.log10( energies ), numpy.log10(ee), numpy.log10( nuFnu ) )
         
         cc = numpy.power(10, interpolation)
         

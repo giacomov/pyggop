@@ -285,5 +285,5 @@ def go(double m=0, double b=0,
         f.write("\n")
         f.close()
     
-    return filename
+    return filename, eps, F_time_int
     
