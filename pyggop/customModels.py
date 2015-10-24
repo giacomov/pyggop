@@ -286,7 +286,7 @@ class MyInterpolator( object ):
             
             template = template / template.max()
             
-            return 
+            return template
         
 
 class BandPPTemplate(SpectralModel):
