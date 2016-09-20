@@ -1,452 +1,562 @@
-#Custom model
+# Custom model
 
-from threeML.models.spectralmodel import SpectralModel
-from threeML.models.Parameter import Parameter
-from threeML.exceptions import CustomExceptions
 import collections
-import numpy
 import glob
+
+import numpy
+
+from astromodels.functions.function import *
+from astromodels import ModelAssertionViolation
+from astromodels.functions.functions import Band
+
+import astropy.units as astropy_units
 
 from pyggop import fast_flux_computation
 
-class BandPP(SpectralModel):
-    
-    def setup(self):
-        
-        self.functionName       = "Band model with pair production opacity"
-        self.formula            = r'''
-        \[f(E) = \left\{ \begin{eqnarray}
-        K \left(\frac{E}{100 \mbox{ keV}}\right)^{\alpha} & \exp{\left(\frac{-E}{E_{c}}\right)} & \mbox{ if } E < (\alpha-\beta)E_{c} \\
-        K \left[ (\alpha-\beta)\frac{E_{c}}{100}\right]^{\alpha-\beta}\left(\frac{E}{100 \mbox{ keV}}\right)^{\beta} & \exp{(\beta-\alpha)} & \mbox{ if } E \ge (\alpha-\beta)E_{c}
-        \end{eqnarray}
-        \right.
-        \]
-        '''
 
-        self.parameters         = collections.OrderedDict()
-        self.parameters['alpha'] = Parameter('alpha',-1.0,-5,10,0.1,fixed=False,nuisance=False,dataset=None)
-        self.parameters['beta']  = Parameter('beta',-2.0,-10,0,0.1,fixed=False,nuisance=False,dataset=None)
-        self.parameters['Ep']    = Parameter('Ep',500,10,1e5,10,fixed=False,nuisance=False,dataset=None,unit='keV')
-        self.parameters['K']     = Parameter('K',1,1e-4,1e3,0.1,fixed=False,nuisance=False,dataset=None,
-                                             normalization=True)
-        #[1+(E/E_c)^{n\Delta\beta}]^{-1/n}
-        self.parameters['Ec']    = Parameter('Ec',3e4,1e3,1e6,10,fixed=False,nuisance=False,dataset=None,unit='keV')
-        self.parameters['n']     = Parameter('n',1,0.1,3,0.1,fixed=False,nuisance=False,dataset=None)
+class BandPP(Function1D):
+    r"""
+    description :
 
-        
-        def integral(e1,e2):
-            return self((e1+e2)/2.0)*(e2-e1)
-        self.integral            = integral
-    
-  
-  
-    def __call__(self,e):
-        #The input e can be either a scalar or an array
-        #The following will generate a wrapper which will
-        #allow to treat them in exactly the same way,
-        #as they both were arrays, while keeping the output
-        #in line with the input: if e is a scalar, the output
-        #will be a scalar; if e is an array, the output will be an array
-        energies                 = numpy.array(e,ndmin=1,copy=False)
-        alpha                    = self.parameters['alpha'].value
-        beta                     = self.parameters['beta'].value
-        Ep                       = self.parameters['Ep'].value
-        K                        = self.parameters['K'].value
-        Ec                       = self.parameters['Ec'].value
-        n                        = self.parameters['n'].value
-        
-        E0 = Ep / ( 2 + alpha )
-        
-        if(alpha < beta):
-          raise CustomExceptions.ModelAssertionViolation("Alpha cannot be less than beta")
-        
-        out                      = numpy.zeros(energies.flatten().shape[0])
-        idx                      = (energies < (alpha-beta)*E0)
-        nidx                     = ~idx
-        out[idx]                 = numpy.maximum(K*numpy.power(energies[idx]/100.0,alpha)*numpy.exp(-energies[idx]/E0),1e-30)
-        out[nidx]                = numpy.maximum(K*numpy.power((alpha-beta)*E0/100.0,alpha-beta)*numpy.exp(beta-alpha)*numpy.power(energies[nidx]/100.0,beta),1e-30)
-    
-        #This fixes nan(s) and inf values, converting them respectively to zeros and large numbers
-        out                      = numpy.nan_to_num(out)
-        
-        #Multiply by the Granot factor
-        deltaBeta                = (-1 - beta) * (2 - beta) / (1 - beta)
-        #print("db = %.2f" % deltaBeta)
-        granot                   = numpy.power( 1 + numpy.power(e/Ec, n * deltaBeta), -1/n)
-        out                      = out * granot
-        
-        if(out.shape[0]==1):
-            return out[0]
-        else:
-            return out
- 
+        Band model affected by pair production opacity
 
+    latex : $  $
 
-class ModifiedBand(SpectralModel):
-    def setup(self):
-        self.functionName       = "Band model with power law decay"
-        self.formula            = r'''
-        $f_{Bbkpo}(E) =$ \begin{cases}
-K E^{\alpha} \exp{\left(\frac{-E}{E_{0}}\right)} & E < (\alpha-\beta)E_{0} \\ 
-K \left[ (\alpha-\beta)E_{0}\right]^{\alpha-\beta} \exp{(\beta-\alpha)} E^{\beta} & (\alpha-\beta)E_{0} \le E < E_{c}\\
-K \left[ (\alpha-\beta)E_{0}\right]^{\alpha-\beta} \exp{(\beta-\alpha)} E_{c}^{\beta-\gamma} E^{\gamma} & E \ge E_{c}
-\end{cases}
-        '''
+    parameters :
 
-        self.parameters         = collections.OrderedDict()
-        self.parameters['alpha'] = Parameter('alpha',-1.0,-5,10,0.1,fixed=False,nuisance=False,dataset=None)
-        self.parameters['beta']  = Parameter('beta',-2.0,-10,0,0.1,fixed=False,nuisance=False,dataset=None)
-        self.parameters['Ep']    = Parameter('Ep',500,10,1e5,10,fixed=False,nuisance=False,dataset=None,unit='keV')
-        self.parameters['K']     = Parameter('K',1,1e-4,1e3,0.1,fixed=False,nuisance=False,dataset=None,normalization=True)
-        self.parameters['break'] = Parameter('break',3e4,10,1e7,1e3,fixed=False,nuisance=False,dataset=None,unit='keV')
-        self.parameters['gamma'] = Parameter('gamma',-4.0,-10,0,0.1,fixed=False,nuisance=False,dataset=None)
-        
-        def integral(e1,e2):
-            return self((e1+e2)/2.0)*(e2-e1)
-        self.integral            = integral
-    
-  
-  
-    def __call__(self,e):
-        #The input e can be either a scalar or an array
-        #The following will generate a wrapper which will
-        #allow to treat them in exactly the same way,
-        #as they both were arrays, while keeping the output
-        #in line with the input: if e is a scalar, the output
-        #will be a scalar; if e is an array, the output will be an array
-        energies                 = numpy.array(e,ndmin=1,copy=False)
-        alpha                    = self.parameters['alpha'].value
-        beta                     = self.parameters['beta'].value
-        Ep                       = self.parameters['Ep'].value
-        K                        = self.parameters['K'].value
-        E1                       = self.parameters['break'].value
-        gamma                    = self.parameters['gamma'].value
-        
-        E0 = Ep / ( 2 + alpha )
-        
-        if(alpha < beta):
-          raise CustomExceptions.ModelAssertionViolation("Alpha cannot be less than beta")
-        
-        out                      = numpy.zeros(energies.flatten().shape[0])
-        idx1                     = (energies < (alpha-beta)*E0)
-        idx2                     = ~idx1 & (energies < E1)
-        idx3                     = ~idx1 & ~idx2
-        out[idx1]                = numpy.maximum(K*numpy.power(energies[idx1]/100.0,alpha)*numpy.exp(-energies[idx1]/E0),1e-30)
-        out[idx2]                = numpy.maximum(K*numpy.power((alpha-beta)*E0/100.0,alpha-beta)*numpy.exp(beta-alpha)*numpy.power(energies[idx2]/100.0,beta),1e-30)
-        out[idx3]                = numpy.maximum(K*numpy.power((alpha-beta)*E0/100.0,alpha-beta)*numpy.exp(beta-alpha)*numpy.power(E1/100.0,beta)*numpy.power(E1/100.0,-gamma)*numpy.power(energies[idx3]/100.0,gamma),1e-30)
-        
-        #This fixes nan(s) and inf values, converting them respectively to zeros and large numbers
-        out                      = numpy.nan_to_num(out)
-        if(out.shape[0]==1):
-            return out[0]
-        else:
-            return out
+        K :
+
+            desc : Differential flux at 100 keV
+            initial value : 1e-4
+
+        alpha :
+
+            desc : low-energy photon index
+            initial value : -1.0
+            min : -1.5
+            max : 0
+
+        xp :
+
+            desc : peak energy in the nuFnu spectrum
+            initial value : 350
+
+        beta :
+
+            desc : high-energy photon index
+            initial value : -2.0
+            min : -3.0
+            max : -1.5
+
+        xc :
+
+            desc : cutoff energy
+            initial value : 3e4
+
+        n :
+
+            desc : delta photon index after the cutoff
+            initial value : 1.0
+            min : 0.1
+            max : 10.0
+
+        piv :
+
+            desc : pivot energy
+            initial value : 100.0
+            fix : yes
+    """
+
+    __metaclass__ = FunctionMeta
+
+    def _set_units(self, x_unit, y_unit):
+
+        # The normalization has the same units as y
+        self.K.unit = y_unit
+
+        # The break point has always the same dimension as the x variable
+        self.xp.unit = x_unit
+        self.xc.unit = x_unit
+
+        self.piv.unit = x_unit
+
+        # alpha and beta are dimensionless
+        self.alpha.unit = astropy_units.dimensionless_unscaled
+        self.beta.unit = astropy_units.dimensionless_unscaled
+        self.n.unit = astropy_units.dimensionless_unscaled
+
+    def evaluate(self, x, K, alpha, xp, beta, xc, n, piv):
+
+        E0 = xp / (2 + alpha)
+
+        if (alpha < beta):
+            raise ModelAssertionViolation("Alpha cannot be less than beta")
+
+        out = np.where(x < (alpha - beta) * E0,
+                       K * numpy.power(x / piv, alpha) * numpy.exp(-x / E0),
+                       K * numpy.power((alpha - beta) * E0 / piv, alpha - beta) * numpy.exp(beta - alpha) *
+                       numpy.power(x / piv, beta))
+
+        # This fixes nan(s) and inf values, converting them respectively to zeros and large numbers
+        out = numpy.nan_to_num(out)
+
+        # Multiply by the Granot factor
+        deltaBeta = (-1 - beta) * (2 - beta) / (1 - beta)
+
+        granot = numpy.power(1 + numpy.power(x / xc, n * deltaBeta), -1 / n)
+
+        out = out * granot
+
+        return out
 
 
-#Yoni's templates
+class ModifiedBand(Function1D):
+    r"""
+        description :
+
+            A Band model with a power law break at high energy
+
+        latex : $  $
+
+        parameters :
+
+            K :
+
+                desc : Differential flux at 100 keV
+                initial value : 1e-4
+
+            alpha :
+
+                desc : low-energy photon index
+                initial value : -1.0
+                min : -1.5
+                max : 0
+
+            xp :
+
+                desc : peak energy in the nuFnu spectrum
+                initial value : 350
+
+            beta :
+
+                desc : high-energy photon index
+                initial value : -2.0
+                min : -3.0
+                max : -1.5
+
+            xc :
+
+                desc : cutoff energy
+                initial value : 3e4
+
+            delta :
+
+                desc : delta photon index after the cutoff
+                initial value : 0.5
+                min : 0
+                max : 5
+
+            piv :
+
+                desc : pivot energy
+                initial value : 100.0
+                fix : yes
+        """
+
+    __metaclass__ = FunctionMeta
+
+    def _set_units(self, x_unit, y_unit):
+        # The normalization has the same units as y
+        self.K.unit = y_unit
+
+        # The break point has always the same dimension as the x variable
+        self.xp.unit = x_unit
+        self.xc.unit = x_unit
+
+        self.piv.unit = x_unit
+
+        # alpha and beta are dimensionless
+        self.alpha.unit = astropy_units.dimensionless_unscaled
+        self.beta.unit = astropy_units.dimensionless_unscaled
+        self.delta.unit = astropy_units.dimensionless_unscaled
+
+    def evaluate(self, x, K, alpha, xp, beta, xc, delta, piv):
+
+        E0 = xp / (2 + alpha)
+
+        gamma = beta - delta
+
+        if alpha < beta or xc < E0:
+
+            raise ModelAssertionViolation("Alpha cannot be less than beta and xc cannot be less than E0")
+
+        out1 = np.where(x < (alpha - beta) * E0,
+                        K * numpy.power(x / piv, alpha) * numpy.exp(-x / E0),
+                        K * numpy.power((alpha - beta) * E0 / piv, alpha - beta) * numpy.exp(beta - alpha) *
+                        numpy.power(x / piv, beta))
+
+        out2 = np.where(x < xc,
+                        out1,
+                        K * numpy.power((alpha - beta) * E0 / piv, alpha - beta) * numpy.exp(
+                            beta - alpha) * numpy.power(
+                            xc / piv, beta) * numpy.power(xc / piv, -gamma) * numpy.power(x / piv, gamma)
+                        )
+
+        # This fixes nan(s) and inf values, converting them respectively to zeros and large numbers
+        out = numpy.nan_to_num(out2)
+
+        return out
+
+
+# Yoni's templates
 import scipy.interpolate
 
-class PairProduction(object):
-    
-    def __init__(self,templateFile,drOnR0):
-        
-        oldStyle = False
-        with open(templateFile) as f:
-            
-            line = f.readline()
-            
-            if line[0]!='#':
-                 
-                 oldStyle = True
-        
-        self.drOnR0 = float(drOnR0)
-        
-        self.Ec = 10000 #init value
-        
-        if oldStyle:
-            
-            thisData = numpy.genfromtxt(templateFile,
-                                        delimiter=',')
-            
-            self._e = numpy.power(10,thisData[:,0])
-            self._nuFnu = numpy.power(10, thisData[:,1])
-        
-        else:
-            
-            #New template style (pyggop)                        
-            
-            thisData = numpy.genfromtxt(templateFile,
-                                        delimiter=' ',
-                                        comments='#')
 
-            self._e = thisData[:,0]
-            self._nuFnu = thisData[:,1]
-            
-            #Replace zero values with a floor value
-            idx = self._nuFnu < 1e-20
-            self._nuFnu[idx] = 1e-20
-            
-        
-        #Make sure they are sorted
-        idx = self._e.argsort()
-        self._e = self._e[idx]
-        self._nuFnu = self._nuFnu[idx]
-        
-        #Normalize the nuFnu to 1
-        self._nuFnu = self._nuFnu / self._nuFnu.max()
-        
-        self._setInterpolant()
-    
-    def _setInterpolant(self):
-        
-        self.interpolant = scipy.interpolate.UnivariateSpline(numpy.log10(self._e * self.Ec), 
-                                                                          numpy.log10(self._nuFnu), k=1,
-                                                                          s=0, ext=3)
-    
-    def __call__(self, energies):
-        return numpy.power(10,self.interpolant(numpy.log10(energies)))
-    
-    def setCutoffEnergy(self, Ec):
-        #print("Cutoff energy is now %s" %(Ec))
-        self.Ec = float(Ec)
-        self._setInterpolant()
+# class PairProduction(object):
+#     def __init__(self, templateFile, drOnR0):
+#
+#         oldStyle = False
+#         with open(templateFile) as f:
+#
+#             line = f.readline()
+#
+#             if line[0] != '#':
+#                 oldStyle = True
+#
+#         self.drOnR0 = float(drOnR0)
+#
+#         self.Ec = 10000  # init value
+#
+#         if oldStyle:
+#
+#             thisData = numpy.genfromtxt(templateFile,
+#                                         delimiter=',')
+#
+#             self._e = numpy.power(10, thisData[:, 0])
+#             self._nuFnu = numpy.power(10, thisData[:, 1])
+#
+#         else:
+#
+#             # New template style (pyggop)
+#
+#             thisData = numpy.genfromtxt(templateFile,
+#                                         delimiter=' ',
+#                                         comments='#')
+#
+#             self._e = thisData[:, 0]
+#             self._nuFnu = thisData[:, 1]
+#
+#             # Replace zero values with a floor value
+#             idx = self._nuFnu < 1e-20
+#             self._nuFnu[idx] = 1e-20
+#
+#         # Make sure they are sorted
+#         idx = self._e.argsort()
+#         self._e = self._e[idx]
+#         self._nuFnu = self._nuFnu[idx]
+#
+#         # Normalize the nuFnu to 1
+#         self._nuFnu = self._nuFnu / self._nuFnu.max()
+#
+#         self._setInterpolant()
+#
+#     def _setInterpolant(self):
+#
+#         self.interpolant = scipy.interpolate.UnivariateSpline(numpy.log10(self._e * self.Ec),
+#                                                               numpy.log10(self._nuFnu), k=1,
+#                                                               s=0, ext=3)
+#
+#     def __call__(self, energies):
+#         return numpy.power(10, self.interpolant(numpy.log10(energies)))
+#
+#     def set_cutoff_energy(self, Ec):
+#         # print("Cutoff energy is now %s" %(Ec))
+#         self.Ec = float(Ec)
+#         self._setInterpolant()
+
+_template_dir = os.getcwd()
+
+def set_template_directory(dir):
+
+    global _template_dir
+
+    _template_dir = dir
 
 
-class MyInterpolator( object ):
-    
-    def __init__( self ):
-        
+class MyInterpolator(object):
+
+    def __init__(self, templates_dir=None):
+
         self.interpolate = True
-        
-        #Make the interpolators
-        
-        templates = glob.glob("flux_*.dat")
 
-        #Get the energy grid from the first interpolator
-        data = numpy.genfromtxt( templates[0], delimiter=' ', comments='#')
+        # Make the interpolators
 
-        self.eneGrid = data[:,0]
+        if templates_dir is None:
 
-        #Read all the templates
-        points = []
-        values = []
+            templates_dir = _template_dir
 
-        for dat in templates:
-            
-            tokens = dat.split("_")
-            beta = float(tokens[2].replace("a",""))
-            DRbar = float(tokens[4].replace("DR","").replace(".dat",""))
-            
-            points.append( [beta, DRbar] )
-            
-            data = numpy.genfromtxt( dat, delimiter=' ', comments='#')
-        
-            fl = data[:,1]
-                
-            values.append( numpy.log10(fl) )
-        
-        points = numpy.array(points)
-        values = numpy.array(values)
-        
-        #Sort them first by index then by dr
-        idx = numpy.lexsort(( points[:,1] , points[:,0]))
-        points = points[idx]
-        values = values[idx]
-        
-        #Now build one interpolator for each energy
-        self.interpolators = []
+        templates = glob.glob(os.path.join(templates_dir,"flux_*.dat"))
 
-        for i in range( self.eneGrid.shape[0] ):
-    
-            this = scipy.interpolate.LinearNDInterpolator(points, values[:,i])
-    
-            self.interpolators.append( this )
-    
-    def setInterpolationOff( self ):
-        
+        if len(templates)==0:
+
+            warnings.warn("No template found in %s. Set the template directory." % templates_dir)
+
+        else:
+            # Get the energy grid from the first interpolator
+            data = numpy.genfromtxt(templates[0], delimiter=' ', comments='#')
+
+            # A-dimensional energy
+
+            self.eneGrid = data[:, 0]
+
+            # Read all the templates
+            points = []
+            values = []
+
+            # Pre-computed templates
+            self.cached = {}
+
+            # Keep track of betas and DRbars
+            self.betas = []
+            self.DRbars = []
+
+            for dat in templates:
+                tokens = dat.split("_")
+                beta = float(tokens[2].replace("a", ""))
+                DRbar = float(tokens[4].replace("DR", "").replace(".dat", ""))
+
+                points.append([beta, DRbar])
+
+                data = numpy.genfromtxt(dat, delimiter=' ', comments='#')
+
+                # Flux
+
+                fl = data[:, 1]
+
+                # Store the logarithm of the flux
+
+                values.append(numpy.log10(fl))
+
+                self.cached[(beta, DRbar)] = numpy.log10(fl)
+
+                self.betas.append(beta)
+                self.DRbars.append(DRbar)
+
+            points = numpy.array(points)
+            values = numpy.array(values)
+
+            # Sort them first by index then by dr
+            idx = numpy.lexsort((points[:, 1], points[:, 0]))
+            points = points[idx]
+            values = values[idx]
+
+            # Now build one interpolator for each energy
+            self.interpolators = []
+
+            for i in range(self.eneGrid.shape[0]):
+
+                this = scipy.interpolate.LinearNDInterpolator(points, values[:, i])
+
+                self.interpolators.append(this)
+
+    def set_interpolation_off(self):
+
         self.interpolate = False
-    
-    def getTemplate( self, beta, DRbar ):
-        
-        if self.interpolate:
-        
-            values = map( lambda interp: interp([beta, DRbar])[0], self.interpolators )
-            
-            template = numpy.power(10, values)
-            
-            template = template / template.max()
-            
-            return template
-            
+
+    def get_template(self, beta, DRbar):
+
+        if (beta, DRbar) in self.cached:
+
+            return self.cached[(beta, DRbar)]
+
+        if self.interpolate and DRbar <= max(self.DRbars) and DRbar >= min(self.DRbars):
+
+            values = map(lambda interp: interp([beta, DRbar])[0], self.interpolators)
+
+            # Logarithm of the flux
+
+            return numpy.array(values)
+
         else:
-            
-            _, eps, f_time_int = fast_flux_computation.go( 0, 0, beta, DRbar, 1.0, 1.0, False )
-            
-            template = numpy.array(f_time_int)
-            
-            template = template / template.max()
-            
-            return template
-        
 
-class BandPPTemplate(SpectralModel):
-    
-    def setup(self):
-        self.functionName       = "Band function multiplied by template"
-        self.formula            = r'''
-        \[f(E) = \left\{ \begin{eqnarray}
-        K \left(\frac{E}{100 \mbox{ keV}}\right)^{\alpha} & \exp{\left(\frac{-E}{E_{c}}\right)} & \mbox{ if } E < (\alpha-\beta)E_{c} \\
-        K \left[ (\alpha-\beta)\frac{E_{c}}{100}\right]^{\alpha-\beta}\left(\frac{E}{100 \mbox{ keV}}\right)^{\beta} & \exp{(\beta-\alpha)} & \mbox{ if } E \ge (\alpha-\beta)E_{c}
-        \end{eqnarray}
-        \right.
-        \]
-        '''
+            _, eps, f_time_int = fast_flux_computation.go(0, 0, beta, DRbar, 1.0, 1.0, False)
 
-        self.parameters         = collections.OrderedDict()
-        self.parameters['alpha'] = Parameter('alpha',-1.0,-5,10,0.1,fixed=False,nuisance=False,dataset=None)
-        self.parameters['beta']  = Parameter('beta',-2.0,-3,-1.5,0.1,fixed=False,nuisance=False,dataset=None)
-        self.parameters['Ep']    = Parameter('Ep',500,10,1e5,10,fixed=False,nuisance=False,dataset=None,unit='keV')
-        self.parameters['K']     = Parameter('K',1,1e-4,1e3,0.1,fixed=False,nuisance=False,dataset=None,normalization=True)
-        
-        self.parameters['Ec']    = Parameter('Ec',511,1e-4,1e6,100,fixed=False,nuisance=False,dataset=None,normalization=False)
-        
-        self.parameters['DRbar'] = Parameter('DRbar',1,0.0001,100,0.1,fixed=False,nuisance=False,dataset=None,normalization=False)
-        
-        def integral(e1,e2):
-            return self((e1+e2)/2.0)*(e2-e1)
-        self.integral            = integral
-        
+            # Logarithm of the flux
+
+            return numpy.array(numpy.log10(f_time_int))
+
+
+class BandPPTemplate(Function1D):
+    r"""
+        description :
+
+            A Band model multiplied by a pair-production opacity computed by interpolating templates from the pyggop
+            code
+
+        latex : $  $
+
+        parameters :
+
+            K :
+
+                desc : Differential flux at 100 keV
+                initial value : 1e-4
+
+            alpha :
+
+                desc : low-energy photon index
+                initial value : -1.0
+                min : -1.5
+                max : 0.0
+
+            xp :
+
+                desc : peak energy in the nuFnu spectrum
+                initial value : 350
+                min : 1
+                max : 1e5
+
+            beta :
+
+                desc : high-energy photon index
+                initial value : -2.0
+                min : -2.3
+                max : -1.7
+
+            xc :
+
+                desc : cutoff energy
+                initial value : 3e4
+
+            DRbar :
+
+                desc : drbar
+                initial value : 1
+                min : 0.1
+                max : 130
+
+            piv :
+
+                desc : pivot energy
+                initial value : 100.0
+                fix : yes
+        """
+
+    __metaclass__ = FunctionMeta
+
+    def _setup(self):
+
         self.interpolator = MyInterpolator()
-        
+
         self.cache = {}
-        
-#        self.lookup = {}
-#        
-#        #Fill the lookup table with the already computed spectra
-#        datfiles = glob.glob("flux_*.dat")
-#        
-#        for dat in datfiles:
-#            
-#            tokens = dat.split("_")
-#            beta = float(tokens[2].replace("a",""))
-#            DRbar = float(tokens[4].replace("DR","").replace(".dat",""))
-#            
-#            key = ("%.2f, %.2g" %(beta * (-1), DRbar))
-#            
-#            self.lookup[ key ] = dat
-        
-    
-    def setTemplate(self, templateInstance):
-        
+
+        self._band_model = Band()
+
+    def set_templates_dir(self, directory):
+
+        self.interpolator = MyInterpolator(directory)
+
+        self.cache = {}
+
+    def set_template(self, templateInstance):
+
         self.templateInstance = templateInstance
-  
-    def __call__(self,e):
-        #The input e can be either a scalar or an array
-        #The following will generate a wrapper which will
-        #allow to treat them in exactly the same way,
-        #as they both were arrays, while keeping the output
-        #in line with the input: if e is a scalar, the output
-        #will be a scalar; if e is an array, the output will be an array
-        energies                 = numpy.array(e,ndmin=1,copy=False)
-        alpha                    = self.parameters['alpha'].value
-        beta                     = self.parameters['beta'].value
-        Ep                       = self.parameters['Ep'].value
-        K                        = self.parameters['K'].value
-        Ec                       = self.parameters['Ec'].value
-        
-        E0                       = Ep / (2 + alpha)
-        
-        DRbar                    = self.parameters['DRbar'].value
-        
+
+    def _set_units(self, x_unit, y_unit):
+
+        # The normalization has the same units as y
+        self.K.unit = y_unit
+
+        # The break point has always the same dimension as the x variable
+        self.xp.unit = x_unit
+        self.xc.unit = x_unit
+
+        self.piv.unit = x_unit
+
+        # alpha and beta are dimensionless
+        self.alpha.unit = astropy_units.dimensionless_unscaled
+        self.beta.unit = astropy_units.dimensionless_unscaled
+        self.DRbar.unit = astropy_units.dimensionless_unscaled
+
+    def evaluate(self, x, K, alpha, xp, beta, xc, DRbar, piv):
+
         if alpha < beta:
-          
-          raise CustomExceptions.ModelAssertionViolation("Alpha cannot be less than beta")
-        
-        if Ec <= Ep and 1==0:
-          
-          raise CustomExceptions.ModelAssertionViolation("Ec cannot be less than Ep")
-        
-        out                      = numpy.zeros(energies.flatten().shape[0])
-        idx                      = (energies < (alpha-beta)*E0)
-        nidx                     = ~idx
-        out[idx]                 = numpy.maximum(K*numpy.power(energies[idx]/100.0,alpha)*numpy.exp(-energies[idx]/E0),1e-30)
-        out[nidx]                = numpy.maximum(K*numpy.power((alpha-beta)*E0/100.0,alpha-beta)*numpy.exp(beta-alpha)*numpy.power(energies[nidx]/100.0,beta),1e-30)
+            raise ModelAssertionViolation("Alpha cannot be less than beta")
 
-        
-#        key = ("%.2f, %.2g" %(beta, DRbar))
-#        
-#        if key in self.lookup.keys():
-#            
-#            print("Reusing beta = %.2f and DRbar = %.2g" %(beta, DRbar))
-#            
-#            template = self.lookup[key]
-#        
-#        else:
-#            
-#            print("Generating with beta = %.2f and DRbar = %.2g" %(beta, DRbar))
-#            
-#            #Generate template
-#            template = fast_flux_computation.go( 0, 0, beta * (-1), DRbar, 1.0, 1.0, False )
-#            
-#            self.lookup[key] = template
-#            
-#        pass
-#        
-#        templIns = PairProduction( template, DRbar )
-#        self.setTemplate( templIns )
-#                
-#        #Now multiply by the template
-#        self.templateInstance.setCutoffEnergy(Ec)
-        
-        key = ("%.5f, %.4g" %(beta, DRbar))
-        
+        #if xc <= xp:
+        #    raise ModelAssertionViolation("Ec cannot be less than Ep")
+
+        out = self._band_model.evaluate(x, K, alpha, xp, beta, piv)
+
+        key = ("%.5f, %.4g" % (beta, DRbar))
+
         if key in self.cache.keys():
-            
-            #print("Cached")
-            
-            nuFnu = numpy.array( self.cache[key], copy=True )
-        
-        else:
-        
-            nuFnu = self.interpolator.getTemplate( beta * (-1), DRbar )
-            
-            self.cache[key] = numpy.array( nuFnu, copy=True )
-        
-        pass
-          
-        ee = self.interpolator.eneGrid * Ec
 
-        interpolation = numpy.interp( numpy.log10( energies ), numpy.log10(ee), numpy.log10( nuFnu ) )
-        
-        cc = numpy.power(10, interpolation)
-        
-        #Re-norm to 1
-        cc = cc / cc.max()
-                
-        idx = (energies / Ec < self.interpolator.eneGrid.min())
-        cc[idx] = 1
-        
-        idx = (energies / Ec > self.interpolator.eneGrid.max())
-        cc[idx] = 0
-        
-        #ene_interpolant = scipy.interpolate.UnivariateSpline(
-        #                              numpy.log10( ee ), 
-        #                              numpy.log10( nuFnu ), k=1,
-        #                              s=0, ext=3)
-        
-        #cc = numpy.power(10, ene_interpolant(numpy.log10(energies)))        
-        
-        #This should be out = (energies * energies * out * cc ) / energies / energies,
-        #which of course simplify to:
-        
-        out =  out * cc
-        
-        
-        #This fixes nan(s) and inf values, converting them respectively to zeros and large numbers
-        out                      = numpy.nan_to_num(out)
-        
-        if(out.shape[0]==1):
-            return out[0]
+            # Logarithm of the flux
+
+            template = numpy.array(self.cache[key], copy=True)
+
         else:
-            return out
- 
+
+            # Logarithm of the flux
+
+            template = self.interpolator.get_template(beta * (-1), DRbar)
+
+            self.cache[key] = numpy.array(template, copy=True)
+
+        pass
+
+        # Energy grid in "observed energy"
+
+        ee = self.interpolator.eneGrid * xc
+
+        # Interpolate in the log space
+
+        interpolation = numpy.interp(numpy.log10(x), numpy.log10(ee), template)
+
+        # Go back to the flux space
+
+        cc = numpy.power(10, interpolation)
+
+        # Now go to photon flux
+        cc = cc / np.power(x, -beta)
+
+        # Correct the extremes in case the template does not cover them
+
+        #idx = (x / xc < self.interpolator.eneGrid.min())
+        #cc[idx] = cc.max()
+
+        idx = (x / xc > self.interpolator.eneGrid.max())
+        cc[idx] = 1e-35
+
+        # Match the Band spectrum and the template at E0
+        E0 = xp / (2 + alpha)
+        Ec = (alpha - beta) * E0
+
+        # Diff. flux of the Band spectrum at Ec
+
+        flux_at_Ec = self._band_model.evaluate(np.array(Ec, ndmin=1), K, alpha, xp, beta, piv)
+
+        # Template at Ec
+        template_at_Ec = pow(10, numpy.interp(numpy.log10(Ec), numpy.log10(ee), template)) / pow(Ec, -beta)
+        
+        idx = (x >= Ec)
+
+        # Renorm factor
+        renorm = flux_at_Ec / template_at_Ec
+
+        cc = renorm * cc
+
+        # Now join the Band spectrum and the template
+
+        out[idx] = cc[idx]
+
+        # This should be np.power(x, -beta) * out * cc / np.power(x, -beta), which of course simplify to:
+
+        #out = out * cc
+
+        # This fixes nan(s) and inf values, converting them respectively to zeros and large numbers
+        out = numpy.nan_to_num(out)
+
+        return out
+
