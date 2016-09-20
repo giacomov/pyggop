@@ -1,6 +1,13 @@
 from pyggop.config import Configuration
 
-from IPython.parallel import Client
+try:
+
+    from ipyparallel import Client
+
+except ImportError:
+
+    from IPython.parallel import Client
+
 
 import multiprocessing
 
